@@ -47,6 +47,14 @@
     transition: border-color 0.2s;
   }
   input:focus { border-color: #fe2c55; }
+  .hint {
+    font-size: 0.75rem;
+    color: #444;
+    margin-top: -14px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .hint a { color: #666; }
   button {
     width: 100%;
     background: #fe2c55;
@@ -79,39 +87,66 @@
   .error { color: #fe2c55; font-weight: 700; }
   .note {
     font-size: 0.75rem;
-    color: #444;
+    color: #333;
     text-align: center;
     margin-top: 16px;
     line-height: 1.6;
+  }
+  .steps {
+    background: #0f0f0f;
+    border: 1px solid #1e1e1e;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    font-size: 0.78rem;
+    color: #555;
+    line-height: 1.9;
+  }
+  .steps strong { color: #888; }
+  .steps code {
+    background: #1a1a1a;
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: #fe2c55;
+    font-size: 0.76rem;
   }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>TikTok Repost Remover</h1>
-  <p class="sub">Automatically removes all reposts from your profile.</p>
+  <p class="sub">Removes all reposts from your profile automatically.</p>
+
+  <div class="steps">
+    <strong>How to get your Session ID:</strong><br>
+    1. Open tiktok.com on any desktop browser<br>
+    2. Log in to your account<br>
+    3. Press <code>F12</code> → Application → Cookies → tiktok.com<br>
+    4. Find <code>sessionid</code> and copy the value
+  </div>
 
   <label for="username">TikTok Username</label>
-  <input type="text" id="username" placeholder="yourhandle" autocomplete="username">
+  <input type="text" id="username" placeholder="yourhandle" autocomplete="off">
 
-  <label for="password">Password</label>
-  <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+  <label for="session_id">Session ID</label>
+  <input type="text" id="session_id" placeholder="Paste sessionid value here" autocomplete="off">
+  <p class="hint">Found in browser DevTools → Application → Cookies → tiktok.com</p>
 
   <button id="btn" onclick="startRemoval()">Remove All Reposts</button>
 
   <div class="log" id="log"></div>
 
-  <p class="note">Your credentials are used only to log in and are never stored.</p>
+  <p class="note">Your session ID is never stored and only used to authenticate.</p>
 </div>
 
 <script>
 function startRemoval() {
   const username = document.getElementById("username").value.replace("@","").trim();
-  const password = document.getElementById("password").value.trim();
+  const session_id = document.getElementById("session_id").value.trim();
   const btn = document.getElementById("btn");
   const log = document.getElementById("log");
 
-  if (!username || !password) { alert("Fill in both fields."); return; }
+  if (!username || !session_id) { alert("Fill in both fields."); return; }
 
   btn.disabled = true;
   btn.textContent = "Running...";
@@ -120,7 +155,7 @@ function startRemoval() {
 
   const fd = new FormData();
   fd.append("username", username);
-  fd.append("password", password);
+  fd.append("session_id", session_id);
 
   fetch("/run", { method: "POST", body: fd }).then(res => {
     const reader = res.body.getReader();
