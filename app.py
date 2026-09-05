@@ -61,6 +61,8 @@ async def remove_reposts(username, session_id, q):
             fails = 0
 
             while fails < 5:
+                await page.wait_for_timeout(2000)
+
                 video = (
                     await page.query_selector('[data-e2e="repost-item"]') or
                     await page.query_selector('[data-e2e="user-post-item"]') or
@@ -73,7 +75,24 @@ async def remove_reposts(username, session_id, q):
                     q.put(f"DONE: Removed {removed} reposts.")
                     break
 
-                await video.click()
+                try:
+                    await video.scroll_into_view_if_needed()
+                    await video.wait_for_element_state("stable")
+                    await video.click(timeout=10000)
+                except Exception:
+                    href = await video.get_attribute("href")
+                    if not href:
+                        link = await video.query_selector("a")
+                        href = await link.get_attribute("href") if link else None
+                    if href:
+                        if href.startswith("/"):
+                            href = "https://www.tiktok.com" + href
+                        await page.goto(href, wait_until="networkidle")
+                    else:
+                        fails += 1
+                        q.put(f"Could not navigate to video (attempt {fails}/5)")
+                        continue
+
                 await page.wait_for_timeout(3000)
 
                 repost_btn = (
