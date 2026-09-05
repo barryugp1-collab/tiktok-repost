@@ -64,18 +64,6 @@ async def take_debug_screenshot(session_id, username):
         await browser.close()
         return base64.b64encode(screenshot).decode(), html
 
-@app.route("/debug")
-def debug():
-    session_id = request.args.get("session_id", "")
-    username = request.args.get("username", "")
-    screenshot_b64, html = asyncio.run(take_debug_screenshot(session_id, username))
-    return f'''
-    <h2>Screenshot</h2>
-    <img src="data:image/png;base64,{screenshot_b64}" style="max-width:100%">
-    <h2>Page HTML (first 5000 chars)</h2>
-    <pre style="white-space:pre-wrap;word-break:break-all">{html[:5000]}</pre>
-    '''
-
 async def remove_reposts(username, session_id, q):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -198,6 +186,31 @@ def run_thread(username, session_id, q):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/debug")
+def debug():
+    session_id = request.args.get("session_id", "")
+    username = request.args.get("username", "")
+
+    result = {}
+
+    def run_debug():
+        result["data"] = asyncio.run(take_debug_screenshot(session_id, username))
+
+    t = threading.Thread(target=run_debug)
+    t.start()
+    t.join(timeout=60)
+
+    if "data" not in result:
+        return "Timed out", 500
+
+    screenshot_b64, html = result["data"]
+    return f'''
+    <h2>Screenshot</h2>
+    <img src="data:image/png;base64,{screenshot_b64}" style="max-width:100%">
+    <h2>Page HTML (first 5000 chars)</h2>
+    <pre style="white-space:pre-wrap;word-break:break-all">{html[:5000]}</pre>
+    '''
 
 @app.route("/run", methods=["POST"])
 def run():
