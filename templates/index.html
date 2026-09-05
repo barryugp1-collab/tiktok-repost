@@ -22,40 +22,52 @@
     border-radius: 16px;
     padding: 32px 24px;
     width: 100%;
-    max-width: 420px;
+    max-width: 440px;
   }
-  h1 {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 6px;
-    color: #fff;
-  }
-  p.sub {
-    font-size: 0.85rem;
-    color: #666;
-    margin-bottom: 28px;
-  }
+  h1 { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .sub { font-size: 0.85rem; color: #555; margin-bottom: 28px; }
   label {
     display: block;
-    font-size: 0.8rem;
-    color: #888;
-    margin-bottom: 6px;
+    font-size: 0.75rem;
+    color: #777;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
   }
-  input {
+  input, textarea {
     width: 100%;
     background: #0a0a0a;
     border: 1px solid #2a2a2a;
     border-radius: 10px;
     color: #f0f0f0;
-    font-size: 1rem;
+    font-size: 0.95rem;
     padding: 12px 14px;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
     outline: none;
     transition: border-color 0.2s;
+    resize: vertical;
   }
-  input:focus { border-color: #fe2c55; }
+  input:focus, textarea:focus { border-color: #fe2c55; }
+  textarea { font-family: monospace; font-size: 0.78rem; min-height: 110px; }
+  .steps {
+    background: #0f0f0f;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 0.82rem;
+    color: #777;
+    line-height: 1.8;
+  }
+  .steps strong { color: #bbb; }
+  .steps code {
+    background: #1a1a1a;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.78rem;
+    color: #fe2c55;
+  }
+  .steps a { color: #fe2c55; text-decoration: none; }
   button {
     width: 100%;
     background: #fe2c55;
@@ -67,61 +79,95 @@
     padding: 14px;
     cursor: pointer;
     transition: opacity 0.2s;
+    margin-bottom: 4px;
   }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
   .log {
-    margin-top: 24px;
+    margin-top: 20px;
     background: #0a0a0a;
-    border: 1px solid #2a2a2a;
+    border: 1px solid #1e1e1e;
     border-radius: 10px;
     padding: 14px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-family: monospace;
-    color: #aaa;
-    max-height: 280px;
+    color: #888;
+    max-height: 260px;
     overflow-y: auto;
     display: none;
   }
-  .log .entry { padding: 3px 0; border-bottom: 1px solid #1a1a1a; }
-  .log .entry:last-child { border-bottom: none; }
-  .log .done { color: #4caf50; font-weight: 600; }
-  .log .error { color: #fe2c55; font-weight: 600; }
-  .warning {
-    font-size: 0.78rem;
+  .entry { padding: 4px 0; border-bottom: 1px solid #141414; }
+  .entry:last-child { border-bottom: none; }
+  .done { color: #4caf50; font-weight: 700; }
+  .error { color: #fe2c55; font-weight: 700; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+  .tab {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #2a2a2a;
+    background: #0a0a0a;
     color: #555;
-    margin-top: 16px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
     text-align: center;
-    line-height: 1.5;
+    transition: all 0.2s;
   }
+  .tab.active { border-color: #fe2c55; color: #fe2c55; background: #1a0508; }
+  .section { display: none; }
+  .section.active { display: block; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>TikTok Repost Remover</h1>
-  <p class="sub">Removes all reposts from your profile automatically.</p>
+  <p class="sub">Remove all reposts from your profile automatically.</p>
 
-  <label for="username">TikTok Username</label>
-  <input type="text" id="username" placeholder="@yourhandle" autocomplete="username">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('cookie')">Cookie Login</div>
+    <div class="tab" onclick="switchTab('howto')">How to get cookies</div>
+  </div>
 
-  <label for="password">Password</label>
-  <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+  <div class="section active" id="tab-cookie">
+    <label for="username">Your TikTok Username</label>
+    <input type="text" id="username" placeholder="yourhandle (no @)">
 
-  <button id="btn" onclick="startRemoval()">Remove All Reposts</button>
+    <label for="cookies">Session Cookies (JSON)</label>
+    <textarea id="cookies" placeholder='[{"name":"sessionid","value":"abc123","domain":".tiktok.com",...}]'></textarea>
 
-  <div class="log" id="log"></div>
+    <button id="btn" onclick="startRemoval()">Remove All Reposts</button>
+    <div class="log" id="log"></div>
+  </div>
 
-  <p class="warning">Your credentials are only used to log in and are never stored.</p>
+  <div class="section" id="tab-howto">
+    <div class="steps">
+      <strong>On desktop Chrome/Firefox:</strong><br><br>
+      1. Go to <a href="https://tiktok.com" target="_blank">tiktok.com</a> and log in normally<br>
+      2. Install the extension <strong>Cookie-Editor</strong> (<a href="https://chrome.google.com/webstore/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Chrome</a> / <a href="https://addons.mozilla.org/en-US/firefox/addon/cookie-editor/" target="_blank">Firefox</a>)<br>
+      3. Click the extension icon while on TikTok<br>
+      4. Click <code>Export</code> → <code>Export as JSON</code><br>
+      5. Copy the JSON and paste it into the Cookie Login tab<br><br>
+      <strong>Cookies expire</strong> after a while — if it stops working, re-export them.
+    </div>
+  </div>
 </div>
 
 <script>
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  event.target.classList.add("active");
+}
+
 function startRemoval() {
-  const username = document.getElementById("username").value.replace("@", "").trim();
-  const password = document.getElementById("password").value.trim();
+  const username = document.getElementById("username").value.replace("@","").trim();
+  const cookies = document.getElementById("cookies").value.trim();
   const btn = document.getElementById("btn");
   const log = document.getElementById("log");
 
-  if (!username || !password) {
-    alert("Enter your username and password.");
+  if (!username || !cookies) {
+    alert("Fill in both fields.");
     return;
   }
 
@@ -130,32 +176,23 @@ function startRemoval() {
   log.style.display = "block";
   log.innerHTML = "";
 
-  const formData = new FormData();
-  formData.append("username", username);
-  formData.append("password", password);
+  const fd = new FormData();
+  fd.append("username", username);
+  fd.append("cookies", cookies);
 
-  fetch("/run", { method: "POST", body: formData })
+  fetch("/run", { method: "POST", body: fd })
     .then(res => {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-
       function read() {
         reader.read().then(({ done, value }) => {
-          if (done) {
-            btn.disabled = false;
-            btn.textContent = "Remove All Reposts";
-            return;
-          }
-          const text = decoder.decode(value);
-          const lines = text.split("\n").filter(l => l.startsWith("data: "));
-          lines.forEach(line => {
+          if (done) { btn.disabled = false; btn.textContent = "Remove All Reposts"; return; }
+          decoder.decode(value).split("\n").filter(l => l.startsWith("data: ")).forEach(line => {
             const msg = line.replace("data: ", "").trim();
-            const entry = document.createElement("div");
-            entry.className = "entry";
-            if (msg.startsWith("DONE")) entry.classList.add("done");
-            if (msg.startsWith("ERROR")) entry.classList.add("error");
-            entry.textContent = msg;
-            log.appendChild(entry);
+            const el = document.createElement("div");
+            el.className = "entry" + (msg.startsWith("DONE") ? " done" : msg.startsWith("ERROR") ? " error" : "");
+            el.textContent = msg;
+            log.appendChild(el);
             log.scrollTop = log.scrollHeight;
           });
           read();
