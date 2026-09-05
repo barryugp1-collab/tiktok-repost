@@ -38,10 +38,10 @@ async def remove_reposts(username, session_id, q):
         try:
             q.put("Opening TikTok...")
             await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(4000)
 
             if "login" in page.url:
-                q.put("ERROR: Session expired or invalid. Copy a fresh sessionid from DevTools.")
+                q.put("ERROR: Session expired. Get a fresh sessionid.")
                 await browser.close()
                 return
 
@@ -49,41 +49,62 @@ async def remove_reposts(username, session_id, q):
 
             repost_tab = await page.query_selector('[data-e2e="repost-tab"]')
             if not repost_tab:
-                q.put("DONE: No reposts tab found. You have no reposts.")
+                q.put("ERROR: Could not find reposts tab.")
                 await browser.close()
                 return
 
             await repost_tab.click()
-            await page.wait_for_timeout(2000)
-            q.put("Found reposts. Starting removal...")
+            await page.wait_for_timeout(3000)
+            q.put("Found reposts tab. Scanning for videos...")
 
             removed = 0
-            while True:
-                video = await page.query_selector('[data-e2e="repost-item"]')
+            fails = 0
+
+            while fails < 5:
+                video = (
+                    await page.query_selector('[data-e2e="repost-item"]') or
+                    await page.query_selector('[data-e2e="user-post-item"]') or
+                    await page.query_selector('div[class*="DivItemContainer"]') or
+                    await page.query_selector('div[class*="repost"] a') or
+                    await page.query_selector('a[href*="/video/"]')
+                )
+
                 if not video:
                     q.put(f"DONE: Removed {removed} reposts.")
                     break
 
                 await video.click()
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(3000)
 
-                repost_btn = await page.query_selector('[data-e2e="repost-icon"]')
+                repost_btn = (
+                    await page.query_selector('[data-e2e="repost-icon"]') or
+                    await page.query_selector('[aria-label="Repost"]') or
+                    await page.query_selector('button[class*="repost"]') or
+                    await page.query_selector('span[class*="repost"]')
+                )
+
                 if repost_btn:
                     await repost_btn.click()
                     await page.wait_for_timeout(1000)
 
-                    confirm = await page.query_selector('[data-e2e="repost-confirm"]')
+                    confirm = (
+                        await page.query_selector('[data-e2e="repost-confirm"]') or
+                        await page.query_selector('button[class*="confirm"]') or
+                        await page.query_selector('div[class*="Modal"] button')
+                    )
                     if confirm:
                         await confirm.click()
                         await page.wait_for_timeout(1000)
 
                     removed += 1
+                    fails = 0
                     q.put(f"Removed repost #{removed}")
                 else:
-                    q.put("Skipped a video (repost button not found)")
+                    fails += 1
+                    q.put(f"Could not find repost button (attempt {fails}/5)")
 
                 await page.go_back()
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(3000)
 
         except Exception as e:
             q.put(f"ERROR: {str(e)}")
