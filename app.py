@@ -67,7 +67,6 @@ async def remove_reposts(username, session_id, q):
                     await page.query_selector('[data-e2e="repost-item"]') or
                     await page.query_selector('[data-e2e="user-post-item"]') or
                     await page.query_selector('div[class*="DivItemContainer"]') or
-                    await page.query_selector('div[class*="repost"] a') or
                     await page.query_selector('a[href*="/video/"]')
                 )
 
@@ -76,10 +75,6 @@ async def remove_reposts(username, session_id, q):
                     break
 
                 try:
-                    await video.scroll_into_view_if_needed()
-                    await video.wait_for_element_state("stable")
-                    await video.click(timeout=10000)
-                except Exception:
                     href = await video.get_attribute("href")
                     if not href:
                         link = await video.query_selector("a")
@@ -88,39 +83,46 @@ async def remove_reposts(username, session_id, q):
                         if href.startswith("/"):
                             href = "https://www.tiktok.com" + href
                         await page.goto(href, wait_until="networkidle")
+                        await page.wait_for_timeout(3000)
                     else:
-                        fails += 1
-                        q.put(f"Could not navigate to video (attempt {fails}/5)")
-                        continue
+                        await video.click(timeout=10000)
+                        await page.wait_for_timeout(3000)
+                except Exception as e:
+                    fails += 1
+                    q.put(f"Could not open video (attempt {fails}/5): {str(e)}")
+                    continue
 
-                await page.wait_for_timeout(3000)
-
-                repost_btn = (
-                    await page.query_selector('[data-e2e="repost-icon"]') or
-                    await page.query_selector('[aria-label="Repost"]') or
-                    await page.query_selector('button[class*="repost"]') or
-                    await page.query_selector('span[class*="repost"]')
+                # click "You reposted" button at bottom left
+                you_reposted = (
+                    await page.query_selector('text="You reposted"') or
+                    await page.query_selector('[aria-label="You reposted"]') or
+                    await page.query_selector('div[class*="reposted"]') or
+                    await page.query_selector('span:has-text("You reposted")')
                 )
 
-                if repost_btn:
-                    await repost_btn.click()
-                    await page.wait_for_timeout(1000)
+                if you_reposted:
+                    await you_reposted.click()
+                    await page.wait_for_timeout(1500)
 
-                    confirm = (
-                        await page.query_selector('[data-e2e="repost-confirm"]') or
-                        await page.query_selector('button[class*="confirm"]') or
-                        await page.query_selector('div[class*="Modal"] button')
+                    # click Remove in the popup
+                    remove_btn = (
+                        await page.query_selector('text="Remove"') or
+                        await page.query_selector('button:has-text("Remove")') or
+                        await page.query_selector('div[class*="MenuItem"]:has-text("Remove")')
                     )
-                    if confirm:
-                        await confirm.click()
-                        await page.wait_for_timeout(1000)
 
-                    removed += 1
-                    fails = 0
-                    q.put(f"Removed repost #{removed}")
+                    if remove_btn:
+                        await remove_btn.click()
+                        await page.wait_for_timeout(1000)
+                        removed += 1
+                        fails = 0
+                        q.put(f"Removed repost #{removed}")
+                    else:
+                        fails += 1
+                        q.put(f"Could not find Remove button (attempt {fails}/5)")
                 else:
                     fails += 1
-                    q.put(f"Could not find repost button (attempt {fails}/5)")
+                    q.put(f"Could not find 'You reposted' button (attempt {fails}/5)")
 
                 await page.go_back()
                 await page.wait_for_timeout(3000)
