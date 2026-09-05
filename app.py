@@ -15,6 +15,8 @@ def install_chromium():
 
 install_chromium()
 
+MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
 async def take_debug_screenshot(session_id, username):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -22,7 +24,8 @@ async def take_debug_screenshot(session_id, username):
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            user_agent=MOBILE_UA,
+            viewport={"width": 390, "height": 844}
         )
         await context.add_cookies([{
             "name": "sessionid",
@@ -71,7 +74,8 @@ async def remove_reposts(username, session_id, q):
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            user_agent=MOBILE_UA,
+            viewport={"width": 390, "height": 844}
         )
 
         await context.add_cookies([{
@@ -199,7 +203,7 @@ def debug():
 
     t = threading.Thread(target=run_debug)
     t.start()
-    t.join(timeout=60)
+    t.join(timeout=120)
 
     if "data" not in result:
         return "Timed out", 500
