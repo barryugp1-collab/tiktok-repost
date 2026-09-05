@@ -1,55 +1,59 @@
 import asyncio
 import threading
+import queue
+import json
 from flask import Flask, render_template, request, Response, stream_with_context
 from playwright.async_api import async_playwright
 
 app = Flask(__name__)
 
-async def remove_reposts(username, password, queue):
+async def remove_reposts_with_cookies(username, cookies, q):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
-        page = await browser.new_page()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        )
 
         try:
-            queue.put("Navigating to TikTok login...")
-            await page.goto("https://www.tiktok.com/login/phone-or-email/email")
-            await page.wait_for_timeout(2000)
+            parsed = json.loads(cookies)
+            await context.add_cookies(parsed)
+            q.put("Cookies loaded. Opening TikTok...")
+        except Exception:
+            q.put("ERROR: Invalid cookie format.")
+            await browser.close()
+            return
 
-            await page.fill('input[name="username"]', username)
-            await page.fill('input[type="password"]', password)
-            await page.click('button[type="submit"]')
+        page = await context.new_page()
 
-            queue.put("Logging in, waiting...")
-            await page.wait_for_timeout(6000)
+        try:
+            await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
+            await page.wait_for_timeout(3000)
 
-            current_url = page.url
-            if "login" in current_url:
-                queue.put("ERROR: Login failed. Check your credentials or solve CAPTCHA manually.")
+            if "login" in page.url:
+                q.put("ERROR: Cookies expired or invalid. Please re-export them.")
                 await browser.close()
                 return
 
-            queue.put("Logged in. Loading your profile...")
-            await page.goto(f"https://www.tiktok.com/@{username}")
-            await page.wait_for_timeout(3000)
+            q.put("Logged in successfully. Looking for reposts tab...")
 
             repost_tab = await page.query_selector('[data-e2e="repost-tab"]')
             if not repost_tab:
-                queue.put("No reposts tab found. You may have no reposts.")
+                q.put("No reposts tab found. You might have no reposts.")
                 await browser.close()
                 return
 
             await repost_tab.click()
             await page.wait_for_timeout(2000)
-            queue.put("Found reposts tab. Starting removal...")
+            q.put("Found reposts. Starting removal...")
 
             removed = 0
             while True:
                 video = await page.query_selector('[data-e2e="repost-item"]')
                 if not video:
-                    queue.put(f"DONE: Removed {removed} reposts.")
+                    q.put(f"DONE: Removed {removed} reposts.")
                     break
 
                 await video.click()
@@ -66,18 +70,20 @@ async def remove_reposts(username, password, queue):
                         await page.wait_for_timeout(1000)
 
                     removed += 1
-                    queue.put(f"Removed repost #{removed}")
+                    q.put(f"Removed repost #{removed}")
+                else:
+                    q.put(f"Skipped a video (no repost button found)")
 
                 await page.go_back()
                 await page.wait_for_timeout(2000)
 
         except Exception as e:
-            queue.put(f"ERROR: {str(e)}")
+            q.put(f"ERROR: {str(e)}")
         finally:
             await browser.close()
 
-def run_async(username, password, queue):
-    asyncio.run(remove_reposts(username, password, queue))
+def run_thread(username, cookies, q):
+    asyncio.run(remove_reposts_with_cookies(username, cookies, q))
 
 @app.route("/")
 def index():
@@ -85,19 +91,17 @@ def index():
 
 @app.route("/run", methods=["POST"])
 def run():
-    username = request.form.get("username")
-    password = request.form.get("password")
+    username = request.form.get("username", "").replace("@", "").strip()
+    cookies = request.form.get("cookies", "").strip()
 
-    import queue
     q = queue.Queue()
-
-    thread = threading.Thread(target=run_async, args=(username, password, q))
+    thread = threading.Thread(target=run_thread, args=(username, cookies, q))
     thread.start()
 
     def generate():
         while True:
             try:
-                msg = q.get(timeout=60)
+                msg = q.get(timeout=120)
                 yield f"data: {msg}\n\n"
                 if msg.startswith("DONE") or msg.startswith("ERROR"):
                     break
