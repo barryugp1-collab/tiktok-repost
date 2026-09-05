@@ -3,6 +3,7 @@ import threading
 import queue
 import subprocess
 import sys
+import base64
 from flask import Flask, render_template, request, Response, stream_with_context
 from playwright.async_api import async_playwright
 
@@ -13,6 +14,67 @@ def install_chromium():
     subprocess.run([sys.executable, "-m", "playwright", "install-deps", "chromium"], check=True)
 
 install_chromium()
+
+async def take_debug_screenshot(session_id, username):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        )
+        await context.add_cookies([{
+            "name": "sessionid",
+            "value": session_id,
+            "domain": ".tiktok.com",
+            "path": "/",
+            "httpOnly": True,
+            "secure": True
+        }])
+        page = await context.new_page()
+        await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
+        await page.wait_for_timeout(3000)
+
+        repost_tab = await page.query_selector('[data-e2e="repost-tab"]')
+        if repost_tab:
+            await repost_tab.click()
+            await page.wait_for_timeout(2000)
+
+        video = (
+            await page.query_selector('[data-e2e="repost-item"]') or
+            await page.query_selector('[data-e2e="user-post-item"]') or
+            await page.query_selector('div[class*="DivItemContainer"]') or
+            await page.query_selector('a[href*="/video/"]')
+        )
+
+        if video:
+            href = await video.get_attribute("href")
+            if not href:
+                link = await video.query_selector("a")
+                href = await link.get_attribute("href") if link else None
+            if href:
+                if href.startswith("/"):
+                    href = "https://www.tiktok.com" + href
+                await page.goto(href, wait_until="networkidle")
+                await page.wait_for_timeout(3000)
+
+        screenshot = await page.screenshot(full_page=False)
+        html = await page.content()
+        await browser.close()
+        return base64.b64encode(screenshot).decode(), html
+
+@app.route("/debug")
+def debug():
+    session_id = request.args.get("session_id", "")
+    username = request.args.get("username", "")
+    screenshot_b64, html = asyncio.run(take_debug_screenshot(session_id, username))
+    return f'''
+    <h2>Screenshot</h2>
+    <img src="data:image/png;base64,{screenshot_b64}" style="max-width:100%">
+    <h2>Page HTML (first 5000 chars)</h2>
+    <pre style="white-space:pre-wrap;word-break:break-all">{html[:5000]}</pre>
+    '''
 
 async def remove_reposts(username, session_id, q):
     async with async_playwright() as p:
@@ -92,7 +154,6 @@ async def remove_reposts(username, session_id, q):
                     q.put(f"Could not open video (attempt {fails}/5): {str(e)}")
                     continue
 
-                # click "You reposted" button at bottom left
                 you_reposted = (
                     await page.query_selector('text="You reposted"') or
                     await page.query_selector('[aria-label="You reposted"]') or
@@ -104,7 +165,6 @@ async def remove_reposts(username, session_id, q):
                     await you_reposted.click()
                     await page.wait_for_timeout(1500)
 
-                    # click Remove in the popup
                     remove_btn = (
                         await page.query_selector('text="Remove"') or
                         await page.query_selector('button:has-text("Remove")') or
