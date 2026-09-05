@@ -1,47 +1,46 @@
 import asyncio
 import threading
 import queue
-import json
 from flask import Flask, render_template, request, Response, stream_with_context
 from playwright.async_api import async_playwright
 
 app = Flask(__name__)
 
-async def remove_reposts_with_cookies(username, cookies, q):
+async def remove_reposts(username, password, q):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        )
+        page = await browser.new_page()
 
         try:
-            parsed = json.loads(cookies)
-            await context.add_cookies(parsed)
-            q.put("Cookies loaded. Opening TikTok...")
-        except Exception:
-            q.put("ERROR: Invalid cookie format.")
-            await browser.close()
-            return
-
-        page = await context.new_page()
-
-        try:
-            await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
+            q.put("Opening TikTok login...")
+            await page.goto("https://www.tiktok.com/login/phone-or-email/email")
             await page.wait_for_timeout(3000)
 
+            q.put("Entering credentials...")
+            await page.fill('input[name="username"]', username)
+            await page.wait_for_timeout(500)
+            await page.fill('input[type="password"]', password)
+            await page.wait_for_timeout(500)
+            await page.click('button[type="submit"]')
+
+            q.put("Waiting for login...")
+            await page.wait_for_timeout(7000)
+
             if "login" in page.url:
-                q.put("ERROR: Cookies expired or invalid. Please re-export them.")
+                q.put("ERROR: Login failed. Wrong credentials or CAPTCHA blocked it.")
                 await browser.close()
                 return
 
-            q.put("Logged in successfully. Looking for reposts tab...")
+            q.put("Logged in. Loading profile...")
+            await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
+            await page.wait_for_timeout(3000)
 
             repost_tab = await page.query_selector('[data-e2e="repost-tab"]')
             if not repost_tab:
-                q.put("No reposts tab found. You might have no reposts.")
+                q.put("DONE: No reposts tab found. You have no reposts.")
                 await browser.close()
                 return
 
@@ -72,7 +71,7 @@ async def remove_reposts_with_cookies(username, cookies, q):
                     removed += 1
                     q.put(f"Removed repost #{removed}")
                 else:
-                    q.put(f"Skipped a video (no repost button found)")
+                    q.put("Skipped a video (repost button not found)")
 
                 await page.go_back()
                 await page.wait_for_timeout(2000)
@@ -82,8 +81,8 @@ async def remove_reposts_with_cookies(username, cookies, q):
         finally:
             await browser.close()
 
-def run_thread(username, cookies, q):
-    asyncio.run(remove_reposts_with_cookies(username, cookies, q))
+def run_thread(username, password, q):
+    asyncio.run(remove_reposts(username, password, q))
 
 @app.route("/")
 def index():
@@ -91,12 +90,11 @@ def index():
 
 @app.route("/run", methods=["POST"])
 def run():
-    username = request.form.get("username", "").replace("@", "").strip()
-    cookies = request.form.get("cookies", "").strip()
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
 
     q = queue.Queue()
-    thread = threading.Thread(target=run_thread, args=(username, cookies, q))
-    thread.start()
+    threading.Thread(target=run_thread, args=(username, password, q)).start()
 
     def generate():
         while True:
@@ -105,7 +103,7 @@ def run():
                 yield f"data: {msg}\n\n"
                 if msg.startswith("DONE") or msg.startswith("ERROR"):
                     break
-            except Exception:
+            except:
                 yield "data: ERROR: Timed out.\n\n"
                 break
 
