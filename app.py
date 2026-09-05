@@ -9,48 +9,43 @@ from playwright.async_api import async_playwright
 app = Flask(__name__)
 
 def install_chromium():
-    subprocess.run(
-        [sys.executable, "-m", "playwright", "install", "chromium"],
-        check=True
-    )
-    subprocess.run(
-        [sys.executable, "-m", "playwright", "install-deps", "chromium"],
-        check=True
-    )
+    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+    subprocess.run([sys.executable, "-m", "playwright", "install-deps", "chromium"], check=True)
 
 install_chromium()
 
-async def remove_reposts(username, password, q):
+async def remove_reposts(username, session_id, q):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
-        page = await browser.new_page()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        )
+
+        await context.add_cookies([{
+            "name": "sessionid",
+            "value": session_id,
+            "domain": ".tiktok.com",
+            "path": "/",
+            "httpOnly": True,
+            "secure": True
+        }])
+
+        page = await context.new_page()
 
         try:
-            q.put("Opening TikTok login...")
-            await page.goto("https://www.tiktok.com/login/phone-or-email/email")
+            q.put("Opening TikTok...")
+            await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
             await page.wait_for_timeout(3000)
 
-            q.put("Entering credentials...")
-            await page.fill('input[name="username"]', username)
-            await page.wait_for_timeout(500)
-            await page.fill('input[type="password"]', password)
-            await page.wait_for_timeout(500)
-            await page.click('button[type="submit"]')
-
-            q.put("Waiting for login...")
-            await page.wait_for_timeout(7000)
-
             if "login" in page.url:
-                q.put("ERROR: Login failed. Wrong credentials or CAPTCHA blocked it.")
+                q.put("ERROR: Session expired or invalid. Copy a fresh sessionid from DevTools.")
                 await browser.close()
                 return
 
-            q.put("Logged in. Loading profile...")
-            await page.goto(f"https://www.tiktok.com/@{username}", wait_until="networkidle")
-            await page.wait_for_timeout(3000)
+            q.put("Logged in. Looking for reposts tab...")
 
             repost_tab = await page.query_selector('[data-e2e="repost-tab"]')
             if not repost_tab:
@@ -95,8 +90,8 @@ async def remove_reposts(username, password, q):
         finally:
             await browser.close()
 
-def run_thread(username, password, q):
-    asyncio.run(remove_reposts(username, password, q))
+def run_thread(username, session_id, q):
+    asyncio.run(remove_reposts(username, session_id, q))
 
 @app.route("/")
 def index():
@@ -104,11 +99,11 @@ def index():
 
 @app.route("/run", methods=["POST"])
 def run():
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "").strip()
+    username = request.form.get("username", "").replace("@", "").strip()
+    session_id = request.form.get("session_id", "").strip()
 
     q = queue.Queue()
-    threading.Thread(target=run_thread, args=(username, password, q)).start()
+    threading.Thread(target=run_thread, args=(username, session_id, q)).start()
 
     def generate():
         while True:
