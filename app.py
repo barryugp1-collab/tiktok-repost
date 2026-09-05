@@ -1,10 +1,24 @@
 import asyncio
 import threading
 import queue
+import subprocess
+import sys
 from flask import Flask, render_template, request, Response, stream_with_context
 from playwright.async_api import async_playwright
 
 app = Flask(__name__)
+
+def install_chromium():
+    subprocess.run(
+        [sys.executable, "-m", "playwright", "install", "chromium"],
+        check=True
+    )
+    subprocess.run(
+        [sys.executable, "-m", "playwright", "install-deps", "chromium"],
+        check=True
+    )
+
+install_chromium()
 
 async def remove_reposts(username, password, q):
     async with async_playwright() as p:
