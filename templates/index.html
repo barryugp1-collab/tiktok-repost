@@ -22,7 +22,7 @@
     border-radius: 16px;
     padding: 32px 24px;
     width: 100%;
-    max-width: 440px;
+    max-width: 420px;
   }
   h1 { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
   .sub { font-size: 0.85rem; color: #555; margin-bottom: 28px; }
@@ -34,40 +34,19 @@
     letter-spacing: 0.06em;
     margin-bottom: 6px;
   }
-  input, textarea {
+  input {
     width: 100%;
     background: #0a0a0a;
     border: 1px solid #2a2a2a;
     border-radius: 10px;
     color: #f0f0f0;
-    font-size: 0.95rem;
+    font-size: 1rem;
     padding: 12px 14px;
     margin-bottom: 20px;
     outline: none;
     transition: border-color 0.2s;
-    resize: vertical;
   }
-  input:focus, textarea:focus { border-color: #fe2c55; }
-  textarea { font-family: monospace; font-size: 0.78rem; min-height: 110px; }
-  .steps {
-    background: #0f0f0f;
-    border: 1px solid #222;
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 20px;
-    font-size: 0.82rem;
-    color: #777;
-    line-height: 1.8;
-  }
-  .steps strong { color: #bbb; }
-  .steps code {
-    background: #1a1a1a;
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-size: 0.78rem;
-    color: #fe2c55;
-  }
-  .steps a { color: #fe2c55; text-decoration: none; }
+  input:focus { border-color: #fe2c55; }
   button {
     width: 100%;
     background: #fe2c55;
@@ -79,7 +58,6 @@
     padding: 14px;
     cursor: pointer;
     transition: opacity 0.2s;
-    margin-bottom: 4px;
   }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   .log {
@@ -91,7 +69,7 @@
     font-size: 0.8rem;
     font-family: monospace;
     color: #888;
-    max-height: 260px;
+    max-height: 280px;
     overflow-y: auto;
     display: none;
   }
@@ -99,77 +77,41 @@
   .entry:last-child { border-bottom: none; }
   .done { color: #4caf50; font-weight: 700; }
   .error { color: #fe2c55; font-weight: 700; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
-  .tab {
-    flex: 1;
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #2a2a2a;
-    background: #0a0a0a;
-    color: #555;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
+  .note {
+    font-size: 0.75rem;
+    color: #444;
     text-align: center;
-    transition: all 0.2s;
+    margin-top: 16px;
+    line-height: 1.6;
   }
-  .tab.active { border-color: #fe2c55; color: #fe2c55; background: #1a0508; }
-  .section { display: none; }
-  .section.active { display: block; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>TikTok Repost Remover</h1>
-  <p class="sub">Remove all reposts from your profile automatically.</p>
+  <p class="sub">Automatically removes all reposts from your profile.</p>
 
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('cookie')">Cookie Login</div>
-    <div class="tab" onclick="switchTab('howto')">How to get cookies</div>
-  </div>
+  <label for="username">TikTok Username</label>
+  <input type="text" id="username" placeholder="yourhandle" autocomplete="username">
 
-  <div class="section active" id="tab-cookie">
-    <label for="username">Your TikTok Username</label>
-    <input type="text" id="username" placeholder="yourhandle (no @)">
+  <label for="password">Password</label>
+  <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
 
-    <label for="cookies">Session Cookies (JSON)</label>
-    <textarea id="cookies" placeholder='[{"name":"sessionid","value":"abc123","domain":".tiktok.com",...}]'></textarea>
+  <button id="btn" onclick="startRemoval()">Remove All Reposts</button>
 
-    <button id="btn" onclick="startRemoval()">Remove All Reposts</button>
-    <div class="log" id="log"></div>
-  </div>
+  <div class="log" id="log"></div>
 
-  <div class="section" id="tab-howto">
-    <div class="steps">
-      <strong>On desktop Chrome/Firefox:</strong><br><br>
-      1. Go to <a href="https://tiktok.com" target="_blank">tiktok.com</a> and log in normally<br>
-      2. Install the extension <strong>Cookie-Editor</strong> (<a href="https://chrome.google.com/webstore/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Chrome</a> / <a href="https://addons.mozilla.org/en-US/firefox/addon/cookie-editor/" target="_blank">Firefox</a>)<br>
-      3. Click the extension icon while on TikTok<br>
-      4. Click <code>Export</code> → <code>Export as JSON</code><br>
-      5. Copy the JSON and paste it into the Cookie Login tab<br><br>
-      <strong>Cookies expire</strong> after a while — if it stops working, re-export them.
-    </div>
-  </div>
+  <p class="note">Your credentials are used only to log in and are never stored.</p>
 </div>
 
 <script>
-function switchTab(name) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-  document.getElementById("tab-" + name).classList.add("active");
-  event.target.classList.add("active");
-}
-
 function startRemoval() {
   const username = document.getElementById("username").value.replace("@","").trim();
-  const cookies = document.getElementById("cookies").value.trim();
+  const password = document.getElementById("password").value.trim();
   const btn = document.getElementById("btn");
   const log = document.getElementById("log");
 
-  if (!username || !cookies) {
-    alert("Fill in both fields.");
-    return;
-  }
+  if (!username || !password) { alert("Fill in both fields."); return; }
 
   btn.disabled = true;
   btn.textContent = "Running...";
@@ -178,28 +120,32 @@ function startRemoval() {
 
   const fd = new FormData();
   fd.append("username", username);
-  fd.append("cookies", cookies);
+  fd.append("password", password);
 
-  fetch("/run", { method: "POST", body: fd })
-    .then(res => {
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      function read() {
-        reader.read().then(({ done, value }) => {
-          if (done) { btn.disabled = false; btn.textContent = "Remove All Reposts"; return; }
-          decoder.decode(value).split("\n").filter(l => l.startsWith("data: ")).forEach(line => {
-            const msg = line.replace("data: ", "").trim();
-            const el = document.createElement("div");
-            el.className = "entry" + (msg.startsWith("DONE") ? " done" : msg.startsWith("ERROR") ? " error" : "");
-            el.textContent = msg;
-            log.appendChild(el);
-            log.scrollTop = log.scrollHeight;
-          });
-          read();
+  fetch("/run", { method: "POST", body: fd }).then(res => {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    function read() {
+      reader.read().then(({ done, value }) => {
+        if (done) {
+          btn.disabled = false;
+          btn.textContent = "Remove All Reposts";
+          return;
+        }
+        decoder.decode(value).split("\n").filter(l => l.startsWith("data: ")).forEach(line => {
+          const msg = line.replace("data: ", "").trim();
+          const el = document.createElement("div");
+          el.className = "entry" + (msg.startsWith("DONE") ? " done" : msg.startsWith("ERROR") ? " error" : "");
+          el.textContent = msg;
+          log.appendChild(el);
+          log.scrollTop = log.scrollHeight;
         });
-      }
-      read();
-    });
+        read();
+      });
+    }
+    read();
+  });
 }
 </script>
 </body>
