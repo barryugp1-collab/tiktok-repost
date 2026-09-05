@@ -1,2 +1,2 @@
 flask
-playwright
+playwright==1.44.0
